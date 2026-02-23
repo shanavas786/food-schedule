@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 data class ScheduleUiState(
+    val masterMembers: List<MasterMember> = emptyList(),
     val members: List<Member> = emptyList(),
     val nextDate: String = "",
     val nextUpName: String = "",
@@ -15,7 +16,6 @@ data class ScheduleUiState(
     val remainingThisIteration: Int = 0,
     val iterationHistory: List<IterationRecord> = emptyList(),
     val currentIterationEntries: List<IterationEntry> = emptyList(),
-    // Transient — cleared after UI consumes it
     val justCompletedIteration: Int? = null
 )
 
@@ -27,6 +27,7 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
 
     private fun snapshot(justCompleted: Int? = null) = ScheduleUiState(
+        masterMembers            = dm.masterMembers.toList(),
         members                  = dm.members.toList(),
         nextDate                 = dm.nextDate,
         nextUpName               = dm.nextUpName(),
@@ -41,24 +42,40 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { snapshot(justCompleted) }
     }
 
+    // Master list mutations
     fun addMember(name: String, phone: String, whatsapp: String) {
         dm.addMember(name, phone, whatsapp); refresh()
     }
-
     fun updateMember(id: String, name: String, phone: String, whatsapp: String) {
         dm.updateMember(id, name, phone, whatsapp); refresh()
     }
-
     fun deleteMember(id: String) {
         dm.deleteMember(id); refresh()
     }
-
-    fun toggleSkip(id: String) {
-        dm.toggleSkip(id); refresh()
+    fun reorderMaster(from: Int, to: Int) {
+        dm.reorderMaster(from, to); refresh()
+    }
+    fun toggleSkipByDefault(id: String) {
+        dm.toggleSkipByDefault(id); refresh()
     }
 
-    fun reorder(from: Int, to: Int) {
-        dm.reorderMembers(from, to); refresh()
+    // Iteration-local mutations
+    fun reorderIteration(from: Int, to: Int) {
+        dm.reorderIterationMembers(from, to); refresh()
+    }
+    fun toggleSkipIteration(id: String) {
+        dm.toggleSkipIteration(id); refresh()
+    }
+
+    // Schedule actions
+    fun confirmSchedule(memberId: String) {
+        dm.confirmSchedule(memberId); refresh()
+    }
+    fun removeSchedule(memberId: String) {
+        dm.removeSchedule(memberId); refresh()
+    }
+    fun updateScheduledDate(memberId: String, newDate: String) {
+        dm.updateScheduledDate(memberId, newDate); refresh()
     }
 
     fun assignNext() {
@@ -66,7 +83,6 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         refresh(justCompleted = if (result.iterationCompleted) result.completedIterationNumber else null)
     }
 
-    /** Call after the UI has shown the "iteration complete" banner */
     fun clearIterationCompletedFlag() {
         _uiState.update { it.copy(justCompletedIteration = null) }
     }

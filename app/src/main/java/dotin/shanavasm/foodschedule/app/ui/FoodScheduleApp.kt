@@ -21,18 +21,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dotin.shanavasm.foodschedule.app.*
 import org.burnoutcrew.reorderable.*
 
-// ── Tabs ─────────────────────────────────────────────────────────────────────
-
-enum class AppTab { SCHEDULE, HISTORY }
-
-// ── Root composable ───────────────────────────────────────────────────────────
+enum class AppTab { SCHEDULE, MASTER, HISTORY }
 
 @Composable
 fun FoodScheduleApp(vm: ScheduleViewModel = viewModel()) {
     val state by vm.uiState.collectAsState()
     var activeTab by remember { mutableStateOf(AppTab.SCHEDULE) }
 
-    // Show a one-shot dialog when an iteration completes
     state.justCompletedIteration?.let { num ->
         AlertDialog(
             onDismissRequest = { vm.clearIterationCompletedFlag() },
@@ -45,8 +40,10 @@ fun FoodScheduleApp(vm: ScheduleViewModel = viewModel()) {
                 }
             },
             text = {
-                Text("All members have been assigned in iteration $num. " +
-                        "A new iteration (#${num + 1}) has started automatically.")
+                Text(
+                    "All members have been assigned in iteration $num. " +
+                    "A new iteration (#${num + 1}) has started, with members reset from the master list."
+                )
             },
             confirmButton = {
                 Button(onClick = { vm.clearIterationCompletedFlag() }) { Text("Great!") }
@@ -60,13 +57,19 @@ fun FoodScheduleApp(vm: ScheduleViewModel = viewModel()) {
                 NavigationBarItem(
                     selected = activeTab == AppTab.SCHEDULE,
                     onClick  = { activeTab = AppTab.SCHEDULE },
-                    icon = { Icon(Icons.Default.CalendarToday, null) },
+                    icon  = { Icon(Icons.Default.CalendarToday, null) },
                     label = { Text("Schedule") }
+                )
+                NavigationBarItem(
+                    selected = activeTab == AppTab.MASTER,
+                    onClick  = { activeTab = AppTab.MASTER },
+                    icon  = { Icon(Icons.Default.Group, null) },
+                    label = { Text("Master List") }
                 )
                 NavigationBarItem(
                     selected = activeTab == AppTab.HISTORY,
                     onClick  = { activeTab = AppTab.HISTORY },
-                    icon = { Icon(Icons.Default.History, null) },
+                    icon  = { Icon(Icons.Default.History, null) },
                     label = { Text("History") }
                 )
             }
@@ -75,20 +78,19 @@ fun FoodScheduleApp(vm: ScheduleViewModel = viewModel()) {
         Box(modifier = Modifier.padding(padding)) {
             when (activeTab) {
                 AppTab.SCHEDULE -> ScheduleTab(vm, state)
+                AppTab.MASTER   -> MasterListTab(vm, state)
                 AppTab.HISTORY  -> HistoryTab(state)
             }
         }
     }
 }
 
-// ── Schedule tab ──────────────────────────────────────────────────────────────
+// ── Schedule tab (current iteration) ─────────────────────────────────────────
 
 @Composable
 fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
-    var showAddDialog  by remember { mutableStateOf(false) }
-    var editTarget: Member?   by remember { mutableStateOf(null) }
-    var deleteTarget: Member? by remember { mutableStateOf(null) }
-    var snackMessage   by remember { mutableStateOf<String?>(null) }
+    var snackMessage         by remember { mutableStateOf<String?>(null) }
+    var editDateTarget: Member? by remember { mutableStateOf(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(snackMessage) {
@@ -96,23 +98,16 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
     }
 
     val reorderState = rememberReorderableLazyListState(
-        onMove = { from, to -> vm.reorder(from.index - 1, to.index - 1) }
+        onMove = { from, to -> vm.reorderIteration(from.index - 1, to.index - 1) }
     )
 
     Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = Color(0xFF1565C0),
-                contentColor   = Color.White
-            ) { Icon(Icons.Default.Add, "Add Member") }
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color(0xFFF5F5F5)
+        snackbarHost    = { SnackbarHost(snackbarHostState) },
+        containerColor  = Color(0xFFF5F5F5)
     ) { padding ->
 
         LazyColumn(
-            state = reorderState.listState,
+            state    = reorderState.listState,
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFFF5F5F5))
@@ -123,20 +118,30 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
         ) {
             item {
                 HeaderCard(
-                    nextDate          = DataManager.formatDisplayDate(state.nextDate).ifEmpty { state.nextDate },
-                    nextUpName        = state.nextUpName,
-                    currentIteration  = state.currentIteration,
-                    remaining         = state.remainingThisIteration,
-                    totalEligible     = state.members.count { !it.skipIteration },
-                    onAssign          = { vm.assignNext(); snackMessage = "Assigned!" }
+                    nextDate         = DataManager.formatDisplayDate(state.nextDate).ifEmpty { state.nextDate },
+                    nextUpName       = state.nextUpName,
+                    currentIteration = state.currentIteration,
+                    remaining        = state.remainingThisIteration,
+                    totalEligible    = state.members.count { !it.skipIteration },
+                    onAssign         = { vm.assignNext(); snackMessage = "Assigned!" }
                 )
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    "Members  (long-press ≡ to reorder)",
-                    modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
-                    fontSize = 12.sp,
-                    color    = Color(0xFF888888)
-                )
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "This Iteration  (long-press ≡ to reorder)",
+                        fontSize = 12.sp,
+                        color    = Color(0xFF888888),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "Reorder here won't affect Master List",
+                        fontSize = 10.sp,
+                        color    = Color(0xFFBBBBBB)
+                    )
+                }
             }
 
             items(
@@ -146,8 +151,8 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
                 val member = state.members[index]
                 ReorderableItem(reorderState, key = member.id) { isDragging ->
                     MemberCard(
-                        member       = member,
-                        dragHandle   = {
+                        member   = member,
+                        dragHandle = {
                             IconButton(
                                 modifier = Modifier.size(32.dp).detectReorder(reorderState),
                                 onClick  = {}
@@ -156,12 +161,141 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
                                     tint = Color(0xFFAAAAAA))
                             }
                         },
-                        onEdit       = { editTarget = member },
-                        onDelete     = { deleteTarget = member },
-                        onToggleSkip = {
-                            vm.toggleSkip(member.id)
+                        onEdit          = { /* editing handled from Master tab */ },
+                        onDelete        = { /* deletion from Master tab */ },
+                        onToggleSkip    = {
+                            vm.toggleSkipIteration(member.id)
                             snackMessage = if (member.skipIteration)
-                                "${member.name} included" else "${member.name} skipped"
+                                "${member.name} included this iteration"
+                            else "${member.name} skipped this iteration"
+                        },
+                        onConfirm       = {
+                            vm.confirmSchedule(member.id)
+                            snackMessage = "${member.name}'s schedule confirmed"
+                        },
+                        onRemoveSchedule = {
+                            vm.removeSchedule(member.id)
+                            snackMessage = "${member.name}'s schedule removed"
+                        },
+                        onEditDate = { editDateTarget = member },
+                        modifier = if (isDragging) Modifier.background(Color(0xFFE3F2FD)) else Modifier
+                    )
+                }
+            }
+        }
+    }
+
+    // Edit date dialog
+    editDateTarget?.let { m ->
+        EditDateDialog(
+            currentDate = m.assignedDate,
+            memberName  = m.name,
+            onDismiss   = { editDateTarget = null },
+            onSave      = { newDate ->
+                vm.updateScheduledDate(m.id, newDate)
+                editDateTarget = null
+                snackMessage   = "Date updated"
+            }
+        )
+    }
+}
+
+// ── Master List tab ───────────────────────────────────────────────────────────
+
+@Composable
+fun MasterListTab(vm: ScheduleViewModel, state: ScheduleUiState) {
+    var showAddDialog        by remember { mutableStateOf(false) }
+    var editTarget: MasterMember? by remember { mutableStateOf(null) }
+    var deleteTarget: MasterMember? by remember { mutableStateOf(null) }
+    var snackMessage         by remember { mutableStateOf<String?>(null) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(snackMessage) {
+        snackMessage?.let { snackbarHostState.showSnackbar(it); snackMessage = null }
+    }
+
+    val reorderState = rememberReorderableLazyListState(
+        onMove = { from, to -> vm.reorderMaster(from.index - 1, to.index - 1) }
+    )
+
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick        = { showAddDialog = true },
+                containerColor = Color(0xFF1565C0),
+                contentColor   = Color.White
+            ) { Icon(Icons.Default.Add, "Add Member") }
+        },
+        snackbarHost   = { SnackbarHost(snackbarHostState) },
+        containerColor = Color(0xFFF5F5F5)
+    ) { padding ->
+
+        LazyColumn(
+            state    = reorderState.listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFF5F5F5))
+                .padding(padding)
+                .reorderable(reorderState)
+                .detectReorderAfterLongPress(reorderState),
+            contentPadding = PaddingValues(bottom = 88.dp)
+        ) {
+            item {
+                Card(
+                    modifier  = Modifier.fillMaxWidth().padding(12.dp),
+                    shape     = RoundedCornerShape(12.dp),
+                    colors    = CardDefaults.cardColors(containerColor = Color(0xFF0D47A1)),
+                    elevation = CardDefaults.cardElevation(4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Group, null,
+                                tint = Color.White, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Master Member List", fontWeight = FontWeight.Bold,
+                                color = Color.White, fontSize = 16.sp)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Reordering here sets the default order for new iterations. " +
+                            "\"Skip by default\" marks members as skipped at the start of every new iteration.",
+                            color    = Color(0xFFBBDEFB),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+                Text(
+                    "Members  (long-press ≡ to reorder master list)",
+                    modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+                    fontSize = 12.sp, color = Color(0xFF888888)
+                )
+            }
+
+            items(
+                count = state.masterMembers.size,
+                key   = { state.masterMembers[it].id }
+            ) { index ->
+                val master = state.masterMembers[index]
+                ReorderableItem(reorderState, key = master.id) { isDragging ->
+                    MasterMemberCard(
+                        master   = master,
+                        dragHandle = {
+                            IconButton(
+                                modifier = Modifier.size(32.dp).detectReorder(reorderState),
+                                onClick  = {}
+                            ) {
+                                Icon(Icons.Default.DragHandle, "Drag",
+                                    tint = Color(0xFFAAAAAA))
+                            }
+                        },
+                        onEdit           = { editTarget = master },
+                        onDelete         = { deleteTarget = master },
+                        onToggleSkipDefault = {
+                            vm.toggleSkipByDefault(master.id)
+                            snackMessage = if (master.skipByDefault)
+                                "${master.name} will be included by default"
+                            else "${master.name} will be skipped by default"
                         },
                         modifier = if (isDragging) Modifier.background(Color(0xFFE3F2FD)) else Modifier
                     )
@@ -170,7 +304,6 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
         }
     }
 
-    // Dialogs
     if (showAddDialog) {
         MemberDialog(
             existing  = null,
@@ -199,15 +332,130 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
             title = { Text("Delete Member") },
-            text  = { Text("Remove ${m.name} from the schedule?") },
+            text  = { Text("Remove ${m.name} from the master list and all future iterations?") },
             confirmButton = {
                 Button(
-                    onClick = { vm.deleteMember(m.id); deleteTarget = null; snackMessage = "${m.name} deleted" },
-                    colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                    onClick = {
+                        vm.deleteMember(m.id)
+                        deleteTarget = null
+                        snackMessage = "${m.name} deleted"
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
                 ) { Text("Delete") }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
         )
+    }
+}
+
+// ── Master member card ────────────────────────────────────────────────────────
+
+@Composable
+fun MasterMemberCard(
+    master: MasterMember,
+    dragHandle: @Composable () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onToggleSkipDefault: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val alpha = if (master.skipByDefault) 0.6f else 1f
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (master.skipByDefault) Color(0xFFFFF8E1) else Color.White
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            dragHandle()
+            Spacer(Modifier.width(6.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = master.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFF1A1A1A),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (master.skipByDefault) {
+                        Spacer(Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFFFE0B2)
+                        ) {
+                            Text(
+                                "Skip by default",
+                                fontSize = 10.sp,
+                                color    = Color(0xFFE65100),
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                Text(master.phone, fontSize = 13.sp, color = Color(0xFF666666))
+
+                Spacer(Modifier.height(4.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Edit
+                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Edit, "Edit",
+                            tint = Color(0xFF555555), modifier = Modifier.size(18.dp))
+                    }
+                    // Delete
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Delete, "Delete",
+                            tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
+                    }
+                    // Toggle skip by default
+                    IconButton(onClick = onToggleSkipDefault, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = if (master.skipByDefault)
+                                Icons.Default.PlayCircle else Icons.Default.DoNotDisturb,
+                            contentDescription = if (master.skipByDefault)
+                                "Include by default" else "Skip by default",
+                            tint = if (master.skipByDefault) Color(0xFF1565C0) else Color(0xFFE65100),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Text(
+                        text = if (master.skipByDefault) "Include by default" else "Skip by default",
+                        fontSize = 11.sp,
+                        color    = if (master.skipByDefault) Color(0xFF1565C0) else Color(0xFFE65100)
+                    )
+                }
+            }
+
+            // Order badge
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFFE8EAF6), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "#${master.masterOrder + 1}",
+                    color      = Color(0xFF3949AB),
+                    fontSize   = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
@@ -239,10 +487,7 @@ private fun HeaderCard(
             ) {
                 Text("🍽️ Food Schedule",
                     color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Surface(
-                    shape  = RoundedCornerShape(20.dp),
-                    color  = Color(0xFF0D47A1)
-                ) {
+                Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFF0D47A1)) {
                     Text(
                         "Iteration $currentIteration",
                         color    = Color(0xFFBBDEFB),
@@ -254,22 +499,22 @@ private fun HeaderCard(
 
             Spacer(Modifier.height(8.dp))
 
-            // Progress bar
             Text(
                 "$assigned / $totalEligible members assigned this iteration",
                 color = Color(0xFFBBDEFB), fontSize = 13.sp
             )
             Spacer(Modifier.height(4.dp))
             LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(6.dp),
-                color    = Color(0xFF42A5F5),
+                progress   = { progress },
+                modifier   = Modifier.fillMaxWidth().height(6.dp),
+                color      = Color(0xFF42A5F5),
                 trackColor = Color(0xFF0D47A1)
             )
 
             Spacer(Modifier.height(8.dp))
-            Text("Next date: $nextDate",     color = Color(0xFFBBDEFB), fontSize = 14.sp)
-            Text("Next up: $nextUpName",     color = Color(0xFFE3F2FD), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Next date: $nextDate",    color = Color(0xFFBBDEFB), fontSize = 14.sp)
+            Text("Next up: $nextUpName",    color = Color(0xFFE3F2FD), fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick  = onAssign,
@@ -306,8 +551,8 @@ fun HistoryTab(state: ScheduleUiState) {
                     Text(
                         "Iteration ${state.currentIteration} — In Progress",
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1565C0),
-                        fontSize = 15.sp
+                        color      = Color(0xFF1565C0),
+                        fontSize   = 15.sp
                     )
                 }
                 Spacer(Modifier.height(8.dp))
@@ -316,9 +561,7 @@ fun HistoryTab(state: ScheduleUiState) {
                 } else {
                     state.currentIterationEntries
                         .sortedBy { it.assignedDate }
-                        .forEach { entry ->
-                            IterationEntryRow(entry)
-                        }
+                        .forEach { entry -> IterationEntryRow(entry) }
                 }
             }
         }
@@ -375,7 +618,7 @@ private fun IterationHistoryCard(record: IterationRecord) {
                             fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         Text(
                             "${DataManager.formatFullDate(record.startedDate)} → " +
-                                    "${DataManager.formatFullDate(record.completedDate)}",
+                            "${DataManager.formatFullDate(record.completedDate)}",
                             fontSize = 12.sp, color = Color(0xFF888888)
                         )
                     }
@@ -420,6 +663,14 @@ private fun IterationEntryRow(entry: IterationEntry) {
             Spacer(Modifier.width(6.dp))
             Text(entry.memberName, fontSize = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
+            entry.confirmed?.let {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (it) "✔" else "✖",
+                    fontSize = 11.sp,
+                    color    = if (it) Color(0xFF388E3C) else Color(0xFFE64A19)
+                )
+            }
         }
         Text(
             DataManager.formatDisplayDate(entry.assignedDate),

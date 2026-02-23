@@ -17,14 +17,19 @@ class DataManager(context: Context) {
 
     // ── In-memory state ───────────────────────────────────────────────────────
 
+    /** Permanent master list – order/skipByDefault live here */
+    private var _masterMembers: MutableList<MasterMember> = mutableListOf()
+
+    /** Current-iteration members (copied from master at iteration start) */
     private var _members: MutableList<Member> = mutableListOf()
-    private var _currentIndex: Int = 0          // next member to assign
+
+    private var _currentIndex: Int = 0
     private var _nextDate: String = todayString()
     private var _currentIteration: Int = 1
     private var _iterationHistory: MutableList<IterationRecord> = mutableListOf()
-    // Entries accumulated for the iteration currently in progress
     private var _currentIterationEntries: MutableList<IterationEntry> = mutableListOf()
 
+    val masterMembers: List<MasterMember> get() = _masterMembers
     val members: List<Member> get() = _members
     val currentIndex: Int get() = _currentIndex
     val nextDate: String get() = _nextDate
@@ -37,32 +42,51 @@ class DataManager(context: Context) {
     // ── Persistence ───────────────────────────────────────────────────────────
 
     private fun load() {
-        // Members
-        val membersJson = prefs.getString("members", null)
-        _members = if (membersJson != null) {
-            gson.fromJson<List<Member>>(membersJson, object : TypeToken<List<Member>>() {}.type)
-                .toMutableList()
+        // Master members
+        val masterJson = prefs.getString("masterMembers", null)
+        _masterMembers = if (masterJson != null) {
+            gson.fromJson<List<MasterMember>>(masterJson,
+                object : TypeToken<List<MasterMember>>() {}.type).toMutableList()
         } else {
-            mutableListOf(
-                Member(name = "Alice Johnson", phone = "+1 555-0101", whatsapp = "+1 555-0101", order = 0),
-                Member(name = "Bob Smith",     phone = "+1 555-0102", whatsapp = "+1 555-0102", order = 1),
-                Member(name = "Carol Davis",   phone = "+1 555-0103", whatsapp = "+1 555-0103", order = 2),
-                Member(name = "David Lee",     phone = "+1 555-0104", whatsapp = "+1 555-0104", order = 3)
-            )
+            // Migrate legacy "members" if present
+            val legacyJson = prefs.getString("members", null)
+            if (legacyJson != null) {
+                val legacy = gson.fromJson<List<Member>>(legacyJson,
+                    object : TypeToken<List<Member>>() {}.type)
+                legacy.mapIndexed { i, m ->
+                    MasterMember(id = m.id, name = m.name, phone = m.phone,
+                        whatsapp = m.whatsapp, masterOrder = i)
+                }.toMutableList()
+            } else {
+                mutableListOf(
+                    MasterMember(name = "Alice Johnson", phone = "+1 555-0101", whatsapp = "+1 555-0101", masterOrder = 0),
+                    MasterMember(name = "Bob Smith",     phone = "+1 555-0102", whatsapp = "+1 555-0102", masterOrder = 1),
+                    MasterMember(name = "Carol Davis",   phone = "+1 555-0103", whatsapp = "+1 555-0103", masterOrder = 2),
+                    MasterMember(name = "David Lee",     phone = "+1 555-0104", whatsapp = "+1 555-0104", masterOrder = 3)
+                )
+            }
+        }
+
+        // Current iteration members (iteration-local copy)
+        val membersJson = prefs.getString("iterationMembers", null)
+        _members = if (membersJson != null) {
+            gson.fromJson<List<Member>>(membersJson,
+                object : TypeToken<List<Member>>() {}.type).toMutableList()
+        } else {
+            // Bootstrap first iteration from master
+            buildIterationMembers()
         }
 
         _currentIndex     = prefs.getInt("currentIndex", 0)
         _nextDate         = prefs.getString("nextDate", todayString()) ?: todayString()
         _currentIteration = prefs.getInt("currentIteration", 1)
 
-        // History
         val historyJson = prefs.getString("iterationHistory", null)
         _iterationHistory = if (historyJson != null) {
             gson.fromJson<List<IterationRecord>>(historyJson,
                 object : TypeToken<List<IterationRecord>>() {}.type).toMutableList()
         } else mutableListOf()
 
-        // Current in-progress entries
         val entriesJson = prefs.getString("currentIterationEntries", null)
         _currentIterationEntries = if (entriesJson != null) {
             gson.fromJson<List<IterationEntry>>(entriesJson,
@@ -72,7 +96,8 @@ class DataManager(context: Context) {
 
     private fun save() {
         prefs.edit()
-            .putString("members", gson.toJson(_members))
+            .putString("masterMembers", gson.toJson(_masterMembers))
+            .putString("iterationMembers", gson.toJson(_members))
             .putInt("currentIndex", _currentIndex)
             .putString("nextDate", _nextDate)
             .putInt("currentIteration", _currentIteration)
@@ -81,88 +106,179 @@ class DataManager(context: Context) {
             .apply()
     }
 
-    // ── Member mutations ──────────────────────────────────────────────────────
+    /** Build a fresh iteration member list from master (respects skipByDefault) */
+    private fun buildIterationMembers(): MutableList<Member> =
+        _masterMembers.sortedBy { it.masterOrder }.mapIndexed { i, m ->
+            Member(
+                id            = m.id,
+                name          = m.name,
+                phone         = m.phone,
+                whatsapp      = m.whatsapp,
+                order         = i,
+                skipIteration = m.skipByDefault
+            )
+        }.toMutableList()
 
-    fun addMember(name: String, phone: String, whatsapp: String): List<Member> {
-        _members.add(Member(name = name, phone = phone, whatsapp = whatsapp, order = _members.size))
+    // ── Master member mutations ───────────────────────────────────────────────
+
+    fun addMember(name: String, phone: String, whatsapp: String): List<MasterMember> {
+        val newMaster = MasterMember(name = name, phone = phone, whatsapp = whatsapp,
+            masterOrder = _masterMembers.size)
+        _masterMembers.add(newMaster)
+        // Also add to current iteration
+        _members.add(Member(id = newMaster.id, name = name, phone = phone,
+            whatsapp = whatsapp, order = _members.size))
         save()
-        return members.toList()
+        return _masterMembers.toList()
     }
 
-    fun updateMember(id: String, name: String, phone: String, whatsapp: String): List<Member> {
+    fun updateMember(id: String, name: String, phone: String, whatsapp: String): List<MasterMember> {
+        _masterMembers.replaceAll { m ->
+            if (m.id == id) m.copy(name = name, phone = phone, whatsapp = whatsapp) else m
+        }
+        // Sync name/phone into current iteration too
         _members.replaceAll { m ->
             if (m.id == id) m.copy(name = name, phone = phone, whatsapp = whatsapp) else m
         }
         save()
-        return members.toList()
+        return _masterMembers.toList()
     }
 
-    fun deleteMember(id: String): List<Member> {
+    fun deleteMember(id: String): List<MasterMember> {
+        _masterMembers.removeAll { it.id == id }
+        _masterMembers.forEachIndexed { i, m -> _masterMembers[i] = m.copy(masterOrder = i) }
         _members.removeAll { it.id == id }
         _members.forEachIndexed { i, m -> _members[i] = m.copy(order = i) }
         if (_currentIndex >= _members.size) _currentIndex = 0
-        // Remove any in-progress history entry for this member
         _currentIterationEntries.removeAll { it.memberId == id }
         save()
-        return members.toList()
+        return _masterMembers.toList()
     }
 
-    fun reorderMembers(from: Int, to: Int): List<Member> {
+    /** Reorder master list */
+    fun reorderMaster(from: Int, to: Int): List<MasterMember> {
+        val item = _masterMembers.removeAt(from)
+        _masterMembers.add(to, item)
+        _masterMembers.forEachIndexed { i, m -> _masterMembers[i] = m.copy(masterOrder = i) }
+        save()
+        return _masterMembers.toList()
+    }
+
+    /** Reorder within the current iteration only */
+    fun reorderIterationMembers(from: Int, to: Int): List<Member> {
         val item = _members.removeAt(from)
         _members.add(to, item)
         _members.forEachIndexed { i, m -> _members[i] = m.copy(order = i) }
         save()
-        return members.toList()
+        return _members.toList()
     }
 
-    fun toggleSkip(id: String): List<Member> {
+    /** Toggle skipByDefault on master; also updates current iteration member */
+    fun toggleSkipByDefault(id: String): List<MasterMember> {
+        _masterMembers.replaceAll { m ->
+            if (m.id == id) m.copy(skipByDefault = !m.skipByDefault) else m
+        }
+        save()
+        return _masterMembers.toList()
+    }
+
+    /** Toggle skip for this iteration only */
+    fun toggleSkipIteration(id: String): List<Member> {
         _members.replaceAll { m ->
             if (m.id == id) m.copy(skipIteration = !m.skipIteration) else m
         }
         save()
-        return members.toList()
+        return _members.toList()
+    }
+
+    // ── Schedule confirmation ─────────────────────────────────────────────────
+
+    /** Confirm a member's scheduled date (mark as accepted) */
+    fun confirmSchedule(memberId: String): List<Member> {
+        _members.replaceAll { m ->
+            if (m.id == memberId) m.copy(confirmed = true) else m
+        }
+        // Also update the entry in currentIterationEntries
+        _currentIterationEntries.replaceAll { e ->
+            if (e.memberId == memberId) e.copy(confirmed = true) else e
+        }
+        save()
+        return _members.toList()
+    }
+
+    /** Remove/unschedule a member's assignment */
+    fun removeSchedule(memberId: String): List<Member> {
+        _members.replaceAll { m ->
+            if (m.id == memberId) m.copy(assignedDate = null, confirmed = null) else m
+        }
+        _currentIterationEntries.removeAll { it.memberId == memberId }
+        // If removed member was before currentIndex, adjust index
+        val removedOrderIdx = _members.indexOfFirst { it.id == memberId }
+        // Move currentIndex back so this member gets re-assigned
+        val assignedCountBefore = _currentIterationEntries.size
+        // Recalculate currentIndex: find first non-assigned non-skipped member
+        recalcCurrentIndex()
+        save()
+        return _members.toList()
+    }
+
+    private fun recalcCurrentIndex() {
+        val assignedIds = _currentIterationEntries.map { it.memberId }.toSet()
+        for (i in _members.indices) {
+            val m = _members[i]
+            if (!m.skipIteration && m.id !in assignedIds) {
+                _currentIndex = i
+                return
+            }
+        }
+        _currentIndex = 0
+    }
+
+    /** Manually set the scheduled date for a member */
+    fun updateScheduledDate(memberId: String, newDate: String): List<Member> {
+        _members.replaceAll { m ->
+            if (m.id == memberId) m.copy(assignedDate = newDate, confirmed = null) else m
+        }
+        _currentIterationEntries.replaceAll { e ->
+            if (e.memberId == memberId) e.copy(assignedDate = newDate) else e
+        }
+        save()
+        return _members.toList()
     }
 
     // ── Assignment logic ──────────────────────────────────────────────────────
 
     data class AssignResult(
         val members: List<Member>,
+        val masterMembers: List<MasterMember>,
         val nextDate: String,
         val iterationCompleted: Boolean,
         val completedIterationNumber: Int = 0
     )
 
-    /**
-     * Assign the next non-skipped member to [_nextDate].
-     * When all eligible members in this iteration have been assigned,
-     * the iteration is finalized, saved to history, and a new one begins.
-     */
     fun assignNext(): AssignResult {
-        if (_members.isEmpty()) return AssignResult(members.toList(), _nextDate, false)
+        if (_members.isEmpty()) return AssignResult(_members.toList(), _masterMembers.toList(), _nextDate, false)
 
-        // Find next non-skipped member
         var assignIdx = -1
         for (i in _members.indices) {
             val idx = (_currentIndex + i) % _members.size
             if (!_members[idx].skipIteration) { assignIdx = idx; break }
         }
-        if (assignIdx == -1) return AssignResult(members.toList(), _nextDate, false) // all skipped
+        if (assignIdx == -1) return AssignResult(_members.toList(), _masterMembers.toList(), _nextDate, false)
 
         // Clear any previous assignment on this date
         _members.replaceAll { m ->
-            if (m.assignedDate == _nextDate) m.copy(assignedDate = null) else m
+            if (m.assignedDate == _nextDate) m.copy(assignedDate = null, confirmed = null) else m
         }
 
         val assigned = _members[assignIdx]
-        _members[assignIdx] = assigned.copy(assignedDate = _nextDate)
+        _members[assignIdx] = assigned.copy(assignedDate = _nextDate, confirmed = null)
 
-        // Record this assignment in the current iteration entries
         val entry = IterationEntry(
-            memberId    = assigned.id,
-            memberName  = assigned.name,
+            memberId     = assigned.id,
+            memberName   = assigned.name,
             assignedDate = _nextDate
         )
-        // Replace if this member was already recorded (e.g. re-assign edge case)
         _currentIterationEntries.removeAll { it.memberId == assigned.id }
         _currentIterationEntries.add(entry)
 
@@ -170,8 +286,6 @@ class DataManager(context: Context) {
         _currentIndex = (assignIdx + 1) % _members.size
         _nextDate = nextDayString(_nextDate)
 
-        // Check if this iteration is complete:
-        // All non-skipped members have an entry in currentIterationEntries
         val eligibleIds = _members.filter { !it.skipIteration }.map { it.id }.toSet()
         val assignedIds = _currentIterationEntries.map { it.memberId }.toSet()
         val iterationCompleted = eligibleIds.isNotEmpty() && eligibleIds == assignedIds
@@ -179,24 +293,23 @@ class DataManager(context: Context) {
         var completedNumber = 0
         if (iterationCompleted) {
             completedNumber = _currentIteration
-            // Save completed iteration to history
             val record = IterationRecord(
                 iterationNumber = _currentIteration,
                 startedDate     = _currentIterationEntries.minByOrNull { it.assignedDate }?.assignedDate ?: assignedDate,
                 completedDate   = assignedDate,
                 entries         = _currentIterationEntries.toList()
             )
-            _iterationHistory.add(0, record) // newest first
+            _iterationHistory.add(0, record)
 
-            // Start new iteration
             _currentIteration++
             _currentIterationEntries.clear()
-            // Clear assigned dates for all members so next iteration starts fresh
-            _members.replaceAll { m -> m.copy(assignedDate = null) }
+            // Start new iteration from master list
+            _members = buildIterationMembers()
+            _currentIndex = 0
         }
 
         save()
-        return AssignResult(members.toList(), _nextDate, iterationCompleted, completedNumber)
+        return AssignResult(_members.toList(), _masterMembers.toList(), _nextDate, iterationCompleted, completedNumber)
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -210,7 +323,6 @@ class DataManager(context: Context) {
         return "All skipped"
     }
 
-    /** How many non-skipped members still need to be assigned this iteration */
     fun remainingThisIteration(): Int {
         val eligibleIds = _members.filter { !it.skipIteration }.map { it.id }.toSet()
         val assignedIds = _currentIterationEntries.map { it.memberId }.toSet()
@@ -244,7 +356,7 @@ class DataManager(context: Context) {
             return try {
                 val parser  = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val display = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-                display.format(parser.parse(isoDate)!!)
+                display.format(parser.parse(isoDate)!!).toString()
             } catch (e: Exception) { isoDate ?: "" }
         }
     }
