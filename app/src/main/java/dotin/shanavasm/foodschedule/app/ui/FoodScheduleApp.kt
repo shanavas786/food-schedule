@@ -24,11 +24,19 @@ import org.burnoutcrew.reorderable.*
 
 enum class AppTab { SCHEDULE, MASTER, HISTORY }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FoodScheduleApp(vm: ScheduleViewModel = viewModel()) {
+fun FoodScheduleApp(
+    vm: ScheduleViewModel = viewModel(),
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {}
+) {
     val state by vm.uiState.collectAsState()
-    var activeTab by remember { mutableStateOf(AppTab.SCHEDULE) }
+    var activeTab        by remember { mutableStateOf(AppTab.SCHEDULE) }
+    var menuExpanded     by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
 
+    // ── Iteration-complete dialog ─────────────────────────────────────────────
     state.justCompletedIteration?.let { num ->
         AlertDialog(
             onDismissRequest = { vm.clearIterationCompletedFlag() },
@@ -52,7 +60,76 @@ fun FoodScheduleApp(vm: ScheduleViewModel = viewModel()) {
         )
     }
 
+    // ── Import confirmation dialog ────────────────────────────────────────────
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportDialog = false },
+            icon  = { Icon(Icons.Default.Warning, null, tint = Color(0xFFF57C00)) },
+            title = { Text("Import Database", fontWeight = FontWeight.Bold) },
+            text  = {
+                Text(
+                    "This will replace ALL current data (members, schedule, history) " +
+                    "with the contents of the selected JSON file. This cannot be undone.\n\n" +
+                    "Consider exporting first to keep a backup."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showImportDialog = false; onImport() },
+                    colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                ) { Text("Replace & Import") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { /* title lives in the header card */ },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFFF5F5F5)
+                ),
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Default.MoreVert, "More options")
+                        }
+                        DropdownMenu(
+                            expanded         = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Upload, null,
+                                            tint     = Color(0xFF1565C0),
+                                            modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(10.dp))
+                                        Text("Export as JSON")
+                                    }
+                                },
+                                onClick = { menuExpanded = false; onExport() }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Download, null,
+                                            tint     = Color(0xFF2E7D32),
+                                            modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(10.dp))
+                                        Text("Import from JSON")
+                                    }
+                                },
+                                onClick = { menuExpanded = false; showImportDialog = true }
+                            )
+                        }
+                    }
+                }
+            )
+        },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(

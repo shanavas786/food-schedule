@@ -347,6 +347,69 @@ class DataManager(context: Context) {
         sdf.format(cal.time)
     } catch (e: Exception) { todayString() }
 
+    // ── Export / Import ───────────────────────────────────────────────────────
+
+    /**
+     * Serialise the entire database to a pretty-printed JSON string.
+     * The envelope contains a version field so future migrations can be handled gracefully.
+     */
+    fun exportJson(): String {
+        val envelope = mapOf(
+            "version"                  to 1,
+            "exportedAt"               to todayString(),
+            "masterMembers"            to _masterMembers,
+            "iterationMembers"         to _members,
+            "currentIndex"             to _currentIndex,
+            "nextDate"                 to _nextDate,
+            "currentIteration"         to _currentIteration,
+            "iterationHistory"         to _iterationHistory,
+            "currentIterationEntries"  to _currentIterationEntries
+        )
+        return gson.toJson(envelope)
+    }
+
+    /**
+     * Replace the entire in-memory state (and persist) from a JSON string previously
+     * produced by [exportJson].  Returns an error message on failure, null on success.
+     */
+    fun importJson(json: String): String? {
+        return try {
+            val mapType = object : TypeToken<Map<String, Any>>() {}.type
+            val map: Map<String, Any> = gson.fromJson(json, mapType)
+
+            fun <T> decode(key: String, type: TypeToken<T>): T? {
+                val raw = map[key] ?: return null
+                return gson.fromJson(gson.toJson(raw), type.type)
+            }
+
+            val masterMembers = decode("masterMembers",
+                object : TypeToken<List<MasterMember>>() {}) ?: return "Missing masterMembers"
+            val members = decode("iterationMembers",
+                object : TypeToken<List<Member>>() {}) ?: return "Missing iterationMembers"
+            val history = decode("iterationHistory",
+                object : TypeToken<List<IterationRecord>>() {}) ?: emptyList<IterationRecord>()
+            val entries = decode("currentIterationEntries",
+                object : TypeToken<List<IterationEntry>>() {}) ?: emptyList<IterationEntry>()
+
+            val currentIndex     = (map["currentIndex"] as? Double)?.toInt() ?: 0
+            val currentIteration = (map["currentIteration"] as? Double)?.toInt() ?: 1
+            val nextDate         = map["nextDate"] as? String ?: todayString()
+
+            _masterMembers           = masterMembers.toMutableList()
+            _members                 = members.toMutableList()
+            _currentIndex            = currentIndex
+            _nextDate                = nextDate
+            _currentIteration        = currentIteration
+            _iterationHistory        = history.toMutableList()
+            _currentIterationEntries = entries.toMutableList()
+
+            save()
+            null  // success
+        } catch (e: Exception) {
+            "Import failed: ${e.message}"
+        }
+    }
+
     companion object {
         fun formatDisplayDate(isoDate: String?): String {
             if (isoDate.isNullOrEmpty()) return ""

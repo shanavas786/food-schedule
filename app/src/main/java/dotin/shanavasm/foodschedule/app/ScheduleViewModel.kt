@@ -90,4 +90,17 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     fun clearIterationCompletedFlag() {
         _uiState.update { it.copy(justCompletedIteration = null) }
     }
+
+    /** Returns the full database as a JSON string for sharing/saving. */
+    fun exportJson(): String = dm.exportJson()
+
+    /**
+     * Replaces all data from a previously exported JSON string.
+     * Returns null on success or an error message on failure.
+     */
+    fun importJson(json: String): String? {
+        val error = dm.importJson(json)
+        if (error == null) refresh()
+        return error
+    }
 }
