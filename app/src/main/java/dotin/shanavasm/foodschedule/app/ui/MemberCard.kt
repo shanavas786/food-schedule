@@ -92,6 +92,14 @@ fun MemberCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(text = member.phone, fontSize = 13.sp, color = Color(0xFF666666))
+                    if (member.membershipNo.isNotBlank()) {
+                        Text(
+                            "No: ${member.membershipNo}",
+                            fontSize = 12.sp,
+                            color    = Color(0xFF1565C0),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
 
                 // Date badge + confirmation chip

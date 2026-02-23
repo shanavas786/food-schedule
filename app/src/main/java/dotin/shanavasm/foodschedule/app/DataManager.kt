@@ -55,7 +55,7 @@ class DataManager(context: Context) {
                     object : TypeToken<List<Member>>() {}.type)
                 legacy.mapIndexed { i, m ->
                     MasterMember(id = m.id, name = m.name, phone = m.phone,
-                        whatsapp = m.whatsapp, masterOrder = i)
+                        whatsapp = m.whatsapp, membershipNo = m.membershipNo, masterOrder = i)
                 }.toMutableList()
             } else {
                 mutableListOf(
@@ -114,6 +114,7 @@ class DataManager(context: Context) {
                 name          = m.name,
                 phone         = m.phone,
                 whatsapp      = m.whatsapp,
+                membershipNo  = m.membershipNo,
                 order         = i,
                 skipIteration = m.skipByDefault
             )
@@ -121,24 +122,22 @@ class DataManager(context: Context) {
 
     // ── Master member mutations ───────────────────────────────────────────────
 
-    fun addMember(name: String, phone: String, whatsapp: String): List<MasterMember> {
+    fun addMember(name: String, phone: String, whatsapp: String, membershipNo: String = ""): List<MasterMember> {
         val newMaster = MasterMember(name = name, phone = phone, whatsapp = whatsapp,
-            masterOrder = _masterMembers.size)
+            membershipNo = membershipNo, masterOrder = _masterMembers.size)
         _masterMembers.add(newMaster)
-        // Also add to current iteration
         _members.add(Member(id = newMaster.id, name = name, phone = phone,
-            whatsapp = whatsapp, order = _members.size))
+            whatsapp = whatsapp, membershipNo = membershipNo, order = _members.size))
         save()
         return _masterMembers.toList()
     }
 
-    fun updateMember(id: String, name: String, phone: String, whatsapp: String): List<MasterMember> {
+    fun updateMember(id: String, name: String, phone: String, whatsapp: String, membershipNo: String = ""): List<MasterMember> {
         _masterMembers.replaceAll { m ->
-            if (m.id == id) m.copy(name = name, phone = phone, whatsapp = whatsapp) else m
+            if (m.id == id) m.copy(name = name, phone = phone, whatsapp = whatsapp, membershipNo = membershipNo) else m
         }
-        // Sync name/phone into current iteration too
         _members.replaceAll { m ->
-            if (m.id == id) m.copy(name = name, phone = phone, whatsapp = whatsapp) else m
+            if (m.id == id) m.copy(name = name, phone = phone, whatsapp = whatsapp, membershipNo = membershipNo) else m
         }
         save()
         return _masterMembers.toList()

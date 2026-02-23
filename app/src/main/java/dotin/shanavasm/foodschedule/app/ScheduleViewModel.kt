@@ -43,11 +43,11 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     }
 
     // Master list mutations
-    fun addMember(name: String, phone: String, whatsapp: String) {
-        dm.addMember(name, phone, whatsapp); refresh()
+    fun addMember(name: String, phone: String, whatsapp: String, membershipNo: String = "") {
+        dm.addMember(name, phone, whatsapp, membershipNo); refresh()
     }
-    fun updateMember(id: String, name: String, phone: String, whatsapp: String) {
-        dm.updateMember(id, name, phone, whatsapp); refresh()
+    fun updateMember(id: String, name: String, phone: String, whatsapp: String, membershipNo: String = "") {
+        dm.updateMember(id, name, phone, whatsapp, membershipNo); refresh()
     }
     fun deleteMember(id: String) {
         dm.deleteMember(id); refresh()

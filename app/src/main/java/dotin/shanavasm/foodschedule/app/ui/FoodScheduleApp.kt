@@ -387,8 +387,8 @@ fun MasterListTab(vm: ScheduleViewModel, state: ScheduleUiState) {
         MemberDialog(
             existing  = null,
             onDismiss = { showAddDialog = false },
-            onSave    = { name, phone, whatsapp ->
-                vm.addMember(name, phone, whatsapp)
+            onSave    = { name, phone, whatsapp, membershipNo ->
+                vm.addMember(name, phone, whatsapp, membershipNo)
                 showAddDialog = false
                 snackMessage  = "$name added"
             }
@@ -399,8 +399,8 @@ fun MasterListTab(vm: ScheduleViewModel, state: ScheduleUiState) {
         MemberDialog(
             existing  = m,
             onDismiss = { editTarget = null },
-            onSave    = { name, phone, whatsapp ->
-                vm.updateMember(m.id, name, phone, whatsapp)
+            onSave    = { name, phone, whatsapp, membershipNo ->
+                vm.updateMember(m.id, name, phone, whatsapp, membershipNo)
                 editTarget   = null
                 snackMessage = "Updated"
             }
@@ -487,6 +487,14 @@ fun MasterMemberCard(
                     }
                 }
                 Text(master.phone, fontSize = 13.sp, color = Color(0xFF666666))
+                if (master.membershipNo.isNotBlank()) {
+                    Text(
+                        "No: ${master.membershipNo}",
+                        fontSize = 12.sp,
+                        color    = Color(0xFF1565C0),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
 
                 Spacer(Modifier.height(4.dp))
 
