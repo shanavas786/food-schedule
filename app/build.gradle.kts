@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "dotin.shanavasm.usthadchelav.app"
+    namespace = "dotin.shanavasm.foodschedule.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "dotin.shanavasm.usthadchelav.app"
+        applicationId = "dotin.shanavasm.foodschedule.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

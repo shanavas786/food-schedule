@@ -1,4 +1,4 @@
-package dotin.shanavasm.usthadchelav.app.ui
+package dotin.shanavasm.foodschedule.app.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -8,24 +8,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import dotin.shanavasm.usthadchelav.app.Member
+import dotin.shanavasm.foodschedule.app.Member
 
 @Composable
-fun EmployeeDialog(
+fun MemberDialog(
     existing: Member?,
     onDismiss: () -> Unit,
     onSave: (name: String, phone: String, whatsapp: String) -> Unit
 ) {
-    var name     by remember { mutableStateOf(existing?.name ?: "") }
-    var phone    by remember { mutableStateOf(existing?.phone ?: "") }
-    var whatsapp by remember { mutableStateOf(existing?.whatsapp ?: "") }
+    var name      by remember { mutableStateOf(existing?.name ?: "") }
+    var phone     by remember { mutableStateOf(existing?.phone ?: "") }
+    var whatsapp  by remember { mutableStateOf(existing?.whatsapp ?: "") }
     var nameError by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (existing == null) "Add Employee" else "Edit Employee",
+                text = if (existing == null) "Add Member" else "Edit Member",
                 fontWeight = FontWeight.Bold
             )
         },

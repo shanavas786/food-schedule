@@ -1,4 +1,4 @@
-package dotin.shanavasm.usthadchelav.app.ui
+package dotin.shanavasm.foodschedule.app.ui
 
 import android.content.Intent
 import android.net.Uri
@@ -18,8 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dotin.shanavasm.usthadchelav.app.DataManager
-import dotin.shanavasm.usthadchelav.app.Member
+import dotin.shanavasm.foodschedule.app.DataManager
+import dotin.shanavasm.foodschedule.app.Member
 
 @Composable
 fun MemberCard(
@@ -34,21 +34,19 @@ fun MemberCard(
     val alpha = if (member.skipIteration) 0.55f else 1f
     var showMessageDialog by remember { mutableStateOf(false) }
 
-    // WhatsApp message dialog
     if (showMessageDialog) {
         WhatsAppMessageDialog(
-            employeeName = member.name,
+            memberName = member.name,
             onDismiss = { showMessageDialog = false },
             onSend = { message ->
                 showMessageDialog = false
                 val number = member.whatsapp.replace(Regex("[^0-9]"), "")
                 val encoded = java.net.URLEncoder.encode(message, "UTF-8")
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number?text=$encoded"))
+                val intent = Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://wa.me/$number?text=$encoded"))
                     .apply { setPackage("com.whatsapp") }
                 try { context.startActivity(intent) }
-                catch (e: Exception) {
-                    context.startActivity(intent.apply { setPackage(null) })
-                }
+                catch (e: Exception) { context.startActivity(intent.apply { setPackage(null) }) }
             }
         )
     }
@@ -68,12 +66,9 @@ fun MemberCard(
                 .padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Drag handle
             dragHandle()
-
             Spacer(modifier = Modifier.width(6.dp))
 
-            // Main info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = member.name,
@@ -83,15 +78,10 @@ fun MemberCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = member.phone,
-                    fontSize = 13.sp,
-                    color = Color(0xFF666666)
-                )
+                Text(text = member.phone, fontSize = 13.sp, color = Color(0xFF666666))
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Action buttons row
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Call
                     IconButton(
@@ -101,66 +91,45 @@ fun MemberCard(
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Call,
-                            contentDescription = "Call",
-                            tint = Color(0xFF1565C0),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Call, "Call",
+                            tint = Color(0xFF1565C0), modifier = Modifier.size(18.dp))
                     }
 
-                    // WhatsApp — open chat (no message)
+                    // Open WhatsApp chat
                     IconButton(
                         onClick = {
                             val number = member.whatsapp.replace(Regex("[^0-9]"), "")
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number"))
+                            val intent = Intent(Intent.ACTION_VIEW,
+                                Uri.parse("https://wa.me/$number"))
                                 .apply { setPackage("com.whatsapp") }
                             try { context.startActivity(intent) }
-                            catch (e: Exception) {
-                                context.startActivity(intent.apply { setPackage(null) })
-                            }
+                            catch (e: Exception) { context.startActivity(intent.apply { setPackage(null) }) }
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Message,
-                            contentDescription = "Open WhatsApp Chat",
-                            tint = Color(0xFF25D366),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Message, "Open WhatsApp Chat",
+                            tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
                     }
 
-                    // Send WhatsApp Message — opens dialog to type message
+                    // Send WhatsApp message
                     IconButton(
                         onClick = { showMessageDialog = true },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Send,
-                            contentDescription = "Send WhatsApp Message",
-                            tint = Color(0xFF25D366),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Send, "Send WhatsApp Message",
+                            tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
                     }
 
                     // Edit
                     IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            tint = Color(0xFF555555),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Edit, "Edit",
+                            tint = Color(0xFF555555), modifier = Modifier.size(18.dp))
                     }
 
                     // Delete
                     IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            tint = Color(0xFFE53935),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Delete, "Delete",
+                            tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
                     }
 
                     // Skip toggle
@@ -174,34 +143,21 @@ fun MemberCard(
                     }
 
                     if (member.skipIteration) {
-                        Text(
-                            text = "Skipped",
-                            color = Color(0xFFE53935),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text("Skipped", color = Color(0xFFE53935), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
-            // Date badge on the right
+            // Date badge
             val dateLabel = DataManager.formatDisplayDate(member.assignedDate)
             if (dateLabel.isNotEmpty()) {
                 Box(
                     modifier = Modifier
-                        .background(
-                            color = Color(0xFFE3F2FD),
-                            shape = RoundedCornerShape(6.dp)
-                        )
+                        .background(Color(0xFFE3F2FD), RoundedCornerShape(6.dp))
                         .padding(horizontal = 8.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = dateLabel,
-                        color = Color(0xFF1565C0),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(dateLabel, color = Color(0xFF1565C0), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -210,39 +166,32 @@ fun MemberCard(
 
 @Composable
 fun WhatsAppMessageDialog(
-    employeeName: String,
+    memberName: String,
     onDismiss: () -> Unit,
     onSend: (String) -> Unit
 ) {
-    var message by remember { mutableStateOf("") }
+    var message      by remember { mutableStateOf("") }
     var messageError by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Send,
-                    contentDescription = null,
-                    tint = Color(0xFF25D366),
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(Icons.Default.Send, null,
+                    tint = Color(0xFF25D366), modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Message $employeeName", fontWeight = FontWeight.Bold)
+                Text("Message $memberName", fontWeight = FontWeight.Bold)
             }
         },
         text = {
             Column {
-                Text(
-                    "Type a message to send via WhatsApp:",
-                    fontSize = 13.sp,
-                    color = Color(0xFF666666)
-                )
+                Text("Type a message to send via WhatsApp:",
+                    fontSize = 13.sp, color = Color(0xFF666666))
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = message,
                     onValueChange = { message = it; messageError = false },
-                    placeholder = { Text("e.g. Hi! It's your turn to clean tomorrow.") },
+                    placeholder = { Text("e.g. Hi! It's your turn to bring food tomorrow.") },
                     isError = messageError,
                     supportingText = if (messageError) ({ Text("Message cannot be empty") }) else null,
                     minLines = 3,
@@ -250,20 +199,20 @@ fun WhatsAppMessageDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                // Quick message chips
                 Text("Quick messages:", fontSize = 12.sp, color = Color(0xFF888888))
                 Spacer(modifier = Modifier.height(4.dp))
                 listOf(
-                    "Hi! It's your turn to clean tomorrow 🧹",
-                    "Reminder: Cleaning duty is today!",
-                    "Please don't forget your cleaning shift."
+                    "Hi! It's your turn to bring food tomorrow 🍽️",
+                    "Reminder: It's your food duty today!",
+                    "Please don't forget your food schedule shift."
                 ).forEach { quick ->
                     SuggestionChip(
                         onClick = { message = quick; messageError = false },
-                        label = { Text(quick, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
+                        label = {
+                            Text(quick, fontSize = 11.sp, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis)
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
                     )
                 }
             }
@@ -276,13 +225,11 @@ fun WhatsAppMessageDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
             ) {
-                Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Send, null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Send")
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
