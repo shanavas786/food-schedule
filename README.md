@@ -32,18 +32,3 @@
 
 ---
 
-## Project Structure
-
-```
-app/src/main/java/com/usthadchelav/app/
-├── MainActivity.kt                   Entry point
-├── Employee.kt                       Data class
-├── DataManager.kt                    Persistence + business logic
-├── ScheduleViewModel.kt              State holder (AndroidViewModel)
-└── ui/
-    ├── CleaningScheduleApp.kt        Main screen composable
-    ├── EmployeeCard.kt               Single employee row
-    ├── EmployeeDialog.kt             Add / Edit dialog
-    └── theme/
-        └── Theme.kt                  Material 3 colour scheme
-```
