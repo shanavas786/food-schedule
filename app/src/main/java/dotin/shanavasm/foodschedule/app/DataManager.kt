@@ -314,6 +314,12 @@ class DataManager(context: Context) {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /** Manually override the date that will be used for the next assignment */
+    fun setNextDate(dateStr: String) {
+        _nextDate = dateStr
+        save()
+    }
+
     fun nextUpName(): String {
         if (_members.isEmpty()) return "—"
         for (i in _members.indices) {

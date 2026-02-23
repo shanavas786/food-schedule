@@ -78,6 +78,10 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         dm.updateScheduledDate(memberId, newDate); refresh()
     }
 
+    fun setNextDate(dateStr: String) {
+        dm.setNextDate(dateStr); refresh()
+    }
+
     fun assignNext() {
         val result = dm.assignNext()
         refresh(justCompleted = if (result.iterationCompleted) result.completedIterationNumber else null)

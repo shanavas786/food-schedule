@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -118,12 +119,13 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
         ) {
             item {
                 HeaderCard(
-                    nextDate         = DataManager.formatDisplayDate(state.nextDate).ifEmpty { state.nextDate },
+                    nextDateIso      = state.nextDate,
                     nextUpName       = state.nextUpName,
                     currentIteration = state.currentIteration,
                     remaining        = state.remainingThisIteration,
                     totalEligible    = state.members.count { !it.skipIteration },
-                    onAssign         = { vm.assignNext(); snackMessage = "Assigned!" }
+                    onAssign         = { vm.assignNext(); snackMessage = "Assigned!" },
+                    onNextDateChanged = { newDate -> vm.setNextDate(newDate) }
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(
@@ -463,15 +465,33 @@ fun MasterMemberCard(
 
 @Composable
 private fun HeaderCard(
-    nextDate: String,
+    nextDateIso: String,
     nextUpName: String,
     currentIteration: Int,
     remaining: Int,
     totalEligible: Int,
-    onAssign: () -> Unit
+    onAssign: () -> Unit,
+    onNextDateChanged: (String) -> Unit
 ) {
     val assigned = totalEligible - remaining
     val progress = if (totalEligible > 0) assigned.toFloat() / totalEligible else 0f
+
+    // Inline date editing state
+    var editing   by remember { mutableStateOf(false) }
+    var dateInput by remember(nextDateIso) { mutableStateOf(nextDateIso) }
+    var dateError by remember { mutableStateOf(false) }
+
+    // Commit helper
+    fun commitDate() {
+        val trimmed = dateInput.trim()
+        if (trimmed.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+            onNextDateChanged(trimmed)
+            editing   = false
+            dateError = false
+        } else {
+            dateError = true
+        }
+    }
 
     Card(
         modifier  = Modifier.fillMaxWidth().padding(12.dp),
@@ -511,8 +531,78 @@ private fun HeaderCard(
                 trackColor = Color(0xFF0D47A1)
             )
 
-            Spacer(Modifier.height(8.dp))
-            Text("Next date: $nextDate",    color = Color(0xFFBBDEFB), fontSize = 14.sp)
+            Spacer(Modifier.height(10.dp))
+
+            // ── Next date row ──────────────────────────────────────────────
+            if (editing) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value         = dateInput,
+                        onValueChange = { dateInput = it; dateError = false },
+                        label         = { Text("Next date", color = Color(0xFFBBDEFB)) },
+                        placeholder   = { Text("yyyy-MM-dd", color = Color(0x88FFFFFF)) },
+                        isError       = dateError,
+                        singleLine    = true,
+                        colors        = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor       = Color.White,
+                            unfocusedTextColor     = Color.White,
+                            focusedBorderColor     = Color(0xFF90CAF9),
+                            unfocusedBorderColor   = Color(0xFF64B5F6),
+                            errorBorderColor       = Color(0xFFEF9A9A),
+                            cursorColor            = Color.White,
+                            focusedLabelColor      = Color(0xFFBBDEFB),
+                            unfocusedLabelColor    = Color(0xFFBBDEFB)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    // Confirm
+                    IconButton(onClick = { commitDate() }) {
+                        Icon(Icons.Default.Check, "Confirm date",
+                            tint = Color(0xFF81C784), modifier = Modifier.size(22.dp))
+                    }
+                    // Cancel
+                    IconButton(onClick = { editing = false; dateInput = nextDateIso; dateError = false }) {
+                        Icon(Icons.Default.Close, "Cancel",
+                            tint = Color(0xFFEF9A9A), modifier = Modifier.size(22.dp))
+                    }
+                }
+                if (dateError) {
+                    Text("Enter a valid date  (yyyy-MM-dd)",
+                        color = Color(0xFFEF9A9A), fontSize = 11.sp,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Next date: ",
+                        color    = Color(0xFFBBDEFB),
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        DataManager.formatDisplayDate(nextDateIso).ifEmpty { nextDateIso },
+                        color      = Color.White,
+                        fontSize   = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    IconButton(
+                        onClick  = { editing = true; dateInput = nextDateIso },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.EditCalendar, "Edit next date",
+                            tint     = Color(0xFF90CAF9),
+                            modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+
             Text("Next up: $nextUpName",    color = Color(0xFFE3F2FD), fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
@@ -677,4 +767,10 @@ private fun IterationEntryRow(entry: IterationEntry) {
             fontSize = 12.sp, color = Color(0xFF1565C0), fontWeight = FontWeight.Medium
         )
     }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DefaultPreview() {
+    FoodScheduleApp()
 }
