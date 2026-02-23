@@ -135,34 +135,24 @@ fun MemberCard(
                 IconButton(
                     onClick = {
                         val number = member.whatsapp.replace(Regex("[^0-9]"), "")
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number"))
+                        val message = "${member.assignedDate} ന് ഉസ്താദിന്റെ ചെലവ് "
+                        val encoded = java.net.URLEncoder.encode(message, "UTF-8")
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number?text=$encoded"))
                             .apply { setPackage("com.whatsapp") }
                         try { context.startActivity(intent) }
                         catch (e: Exception) { context.startActivity(intent.apply { setPackage(null) }) }
                     },
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Message, "WhatsApp",
+                    Icon(Icons.Default.Send, "WhatsApp",
                         tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
                 }
 
-                // Send WhatsApp message
-                IconButton(onClick = { showMessageDialog = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Send, "Send Message",
-                        tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
-                }
-
-                // Edit member info
-                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Edit, "Edit",
-                        tint = Color(0xFF555555), modifier = Modifier.size(18.dp))
-                }
-
-                // Delete member
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, "Delete",
-                        tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
-                }
+//                // Send WhatsApp message
+//                IconButton(onClick = { showMessageDialog = true }, modifier = Modifier.size(32.dp)) {
+//                    Icon(Icons.Default.Message, "Send Message",
+//                        tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
+//                }
 
                 // Skip this iteration
                 IconButton(onClick = onToggleSkip, modifier = Modifier.size(32.dp)) {
