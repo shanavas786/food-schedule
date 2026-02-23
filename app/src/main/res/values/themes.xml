@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Base theme applied before Compose takes over -->
-    <style name="Theme.CleaningSchedule" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.FoodSchedule" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">#0D47A1</item>
     </style>
 </resources>
