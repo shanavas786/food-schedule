@@ -23,7 +23,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="Food Schedule"
+        android:label="ചെലവ് പറഞ്ഞാ?"
         android:supportsRtl="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

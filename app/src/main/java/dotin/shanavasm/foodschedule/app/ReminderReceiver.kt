@@ -47,14 +47,14 @@ class ReminderReceiver : BroadcastReceiver() {
         // A date is "assigned" if any current-iteration member has that assignedDate
         // and has not had their schedule removed (confirmed != false)
         val assignedDates = dm.members
-            .filter { it.assignedDate != null && it.confirmed != false }
+            .filter { it.assignedDate != null || it.confirmed != true }
             .mapNotNull { it.assignedDate }
             .toSet()
 
         val unassignedCount = next4.count { it !in assignedDates }
 
-        // Only notify if ALL 4 upcoming days are unassigned
-        if (unassignedCount == 4) {
+        // Only notify if ANY 4 upcoming days are unassigned
+        if (unassignedCount > 0) {
             NotificationHelper.showUnassignedReminder(context, unassignedCount)
         }
     }

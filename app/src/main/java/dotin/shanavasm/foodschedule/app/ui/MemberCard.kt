@@ -143,7 +143,7 @@ fun MemberCard(
                 IconButton(
                     onClick = {
                         val number = member.whatsapp.replace(Regex("[^0-9]"), "")
-                        val message = "${member.assignedDate} ന് ഉസ്താദിന്റെ ചെലവ് "
+                        val message = "ٱلسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ ٱللَّٰهِ وَبَرَكَاتُهُ\n" + "${DataManager.formatDisplayDate(member.assignedDate)} ന് ഉസ്താദിന്റെ ചെലവ് "
                         val encoded = java.net.URLEncoder.encode(message, "UTF-8")
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number?text=$encoded"))
                             .apply { setPackage("com.whatsapp") }

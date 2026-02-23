@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -167,21 +168,50 @@ fun FoodScheduleApp(
 
 @Composable
 fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
-    var snackMessage         by remember { mutableStateOf<String?>(null) }
+    var snackMessage            by remember { mutableStateOf<String?>(null) }
     var editDateTarget: Member? by remember { mutableStateOf(null) }
+    var assignedExpanded        by remember { mutableStateOf(true) }
+    var skippedExpanded         by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(snackMessage) {
         snackMessage?.let { snackbarHostState.showSnackbar(it); snackMessage = null }
     }
 
+    // Partition members into three groups
+    val today = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            .format(java.util.Date())
+    }
+
+    val pendingMembers  = state.members.filter { !it.skipIteration && ( it.assignedDate == null || it.assignedDate > today)  }
+    val assignedMembers = state.members.filter {
+        !it.skipIteration && it.assignedDate != null && it.assignedDate == today
+    }
+    val skippedMembers  = state.members.filter { it.skipIteration }
+
+    // Reorder only operates on the pending (unassigned) list.
+    // The index offset accounts for: 1 header item before pending items.
     val reorderState = rememberReorderableLazyListState(
-        onMove = { from, to -> vm.reorderIteration(from.index - 1, to.index - 1) }
+        onMove = { from, to ->
+            // Items in LazyColumn: [0]=HeaderCard, [1..pending.size]=pending members
+            val fromIdx = from.index - 1
+            val toIdx   = to.index - 1
+            if (fromIdx in pendingMembers.indices && toIdx in pendingMembers.indices) {
+                // Map local pending indices back to full members list indices
+                val pendingIds  = pendingMembers.map { it.id }
+                val fromMember  = pendingMembers.getOrNull(fromIdx) ?: return@rememberReorderableLazyListState
+                val toMember    = pendingMembers.getOrNull(toIdx)   ?: return@rememberReorderableLazyListState
+                val globalFrom  = state.members.indexOfFirst { it.id == fromMember.id }
+                val globalTo    = state.members.indexOfFirst { it.id == toMember.id }
+                if (globalFrom >= 0 && globalTo >= 0) vm.reorderIteration(globalFrom, globalTo)
+            }
+        }
     )
 
     Scaffold(
-        snackbarHost    = { SnackbarHost(snackbarHostState) },
-        containerColor  = Color(0xFFF5F5F5)
+        snackbarHost   = { SnackbarHost(snackbarHostState) },
+        containerColor = Color(0xFFF5F5F5)
     ) { padding ->
 
         LazyColumn(
@@ -194,61 +224,59 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
                 .detectReorderAfterLongPress(reorderState),
             contentPadding = PaddingValues(bottom = 88.dp)
         ) {
-            item {
+
+            // ── Header card ───────────────────────────────────────────────
+            item(key = "header") {
                 HeaderCard(
-                    nextDateIso      = state.nextDate,
-                    nextUpName       = state.nextUpName,
-                    currentIteration = state.currentIteration,
-                    remaining        = state.remainingThisIteration,
-                    totalEligible    = state.members.count { !it.skipIteration },
-                    onAssign         = { vm.assignNext(); snackMessage = "Assigned!" },
+                    nextDateIso       = state.nextDate,
+                    nextUpName        = state.nextUpName,
+                    currentIteration  = state.currentIteration,
+                    remaining         = state.remainingThisIteration,
+                    totalEligible     = state.members.count { !it.skipIteration },
+                    onAssign          = { vm.assignNext(); snackMessage = "Assigned!" },
                     onNextDateChanged = { newDate -> vm.setNextDate(newDate) }
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+                    modifier          = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         "This Iteration  (long-press ≡ to reorder)",
-                        fontSize = 12.sp,
-                        color    = Color(0xFF888888),
+                        fontSize = 12.sp, color = Color(0xFF888888),
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        "Reorder here won't affect Master List",
-                        fontSize = 10.sp,
-                        color    = Color(0xFFBBBBBB)
+                        "Reorder won't affect Master List",
+                        fontSize = 10.sp, color = Color(0xFFBBBBBB)
                     )
                 }
             }
 
+            // ── Pending / unassigned members (reorderable) ────────────────
             items(
-                count = state.members.size,
-                key   = { state.members[it].id }
+                count = pendingMembers.size,
+                key   = { pendingMembers[it].id }
             ) { index ->
-                val member = state.members[index]
+                val member = pendingMembers[index]
                 ReorderableItem(reorderState, key = member.id) { isDragging ->
                     MemberCard(
-                        member   = member,
+                        member     = member,
                         dragHandle = {
                             IconButton(
                                 modifier = Modifier.size(32.dp).detectReorder(reorderState),
                                 onClick  = {}
                             ) {
-                                Icon(Icons.Default.DragHandle, "Drag",
-                                    tint = Color(0xFFAAAAAA))
+                                Icon(Icons.Default.DragHandle, "Drag", tint = Color(0xFFAAAAAA))
                             }
                         },
-                        onEdit          = { /* editing handled from Master tab */ },
-                        onDelete        = { /* deletion from Master tab */ },
-                        onToggleSkip    = {
+                        onEdit           = {},
+                        onDelete         = {},
+                        onToggleSkip     = {
                             vm.toggleSkipIteration(member.id)
-                            snackMessage = if (member.skipIteration)
-                                "${member.name} included this iteration"
-                            else "${member.name} skipped this iteration"
+                            snackMessage = "${member.name} skipped this iteration"
                         },
-                        onConfirm       = {
+                        onConfirm        = {
                             vm.confirmSchedule(member.id)
                             snackMessage = "${member.name}'s schedule confirmed"
                         },
@@ -257,14 +285,86 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
                             snackMessage = "${member.name}'s schedule removed"
                         },
                         onEditDate = { editDateTarget = member },
-                        modifier = if (isDragging) Modifier.background(Color(0xFFE3F2FD)) else Modifier
+                        modifier   = if (isDragging) Modifier.background(Color(0xFFE3F2FD)) else Modifier
                     )
+                }
+            }
+
+            // ── Assigned accordion ────────────────────────────────────────
+            if (assignedMembers.isNotEmpty()) {
+                item(key = "assigned_header") {
+                    AccordionHeader(
+                        title    = "Assigned",
+                        count    = assignedMembers.size,
+                        expanded = assignedExpanded,
+                        color    = Color(0xFF1565C0),
+                        bgColor  = Color(0xFFE3F2FD),
+                        onClick  = { assignedExpanded = !assignedExpanded }
+                    )
+                }
+                if (assignedExpanded) {
+                    items(assignedMembers, key = { "assigned_${it.id}" }) { member ->
+                        // Non-reorderable — wrap in a plain Box so reorderable ignores it
+                        ReorderableItem(reorderState, key = "assigned_${member.id}") {
+                            MemberCard(
+                                member     = member,
+                                dragHandle = { Spacer(Modifier.width(32.dp)) },
+                                onEdit           = {},
+                                onDelete         = {},
+                                onToggleSkip     = {
+                                    vm.toggleSkipIteration(member.id)
+                                    snackMessage = "${member.name} skipped this iteration"
+                                },
+                                onConfirm        = {
+                                    vm.confirmSchedule(member.id)
+                                    snackMessage = "${member.name}'s schedule confirmed"
+                                },
+                                onRemoveSchedule = {
+                                    vm.removeSchedule(member.id)
+                                    snackMessage = "${member.name}'s schedule removed"
+                                },
+                                onEditDate = { editDateTarget = member }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Skipped accordion ─────────────────────────────────────────
+            if (skippedMembers.isNotEmpty()) {
+                item(key = "skipped_header") {
+                    AccordionHeader(
+                        title    = "Skipped",
+                        count    = skippedMembers.size,
+                        expanded = skippedExpanded,
+                        color    = Color(0xFFFF8F00),
+                        bgColor  = Color(0xFFFFF8E1),
+                        onClick  = { skippedExpanded = !skippedExpanded }
+                    )
+                }
+                if (skippedExpanded) {
+                    items(skippedMembers, key = { "skipped_${it.id}" }) { member ->
+                        ReorderableItem(reorderState, key = "skipped_${member.id}") {
+                            MemberCard(
+                                member     = member,
+                                dragHandle = { Spacer(Modifier.width(32.dp)) },
+                                onEdit           = {},
+                                onDelete         = {},
+                                onToggleSkip     = {
+                                    vm.toggleSkipIteration(member.id)
+                                    snackMessage = "${member.name} included this iteration"
+                                },
+                                onConfirm        = {},
+                                onRemoveSchedule = {},
+                                onEditDate       = {}
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Edit date dialog
     editDateTarget?.let { m ->
         EditDateDialog(
             currentDate = m.assignedDate,
@@ -276,6 +376,60 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
                 snackMessage   = "Date updated"
             }
         )
+    }
+}
+
+// ── Accordion section header ──────────────────────────────────────────────────
+
+@Composable
+private fun AccordionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    color: Color,
+    bgColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick   = onClick,
+        modifier  = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape     = RoundedCornerShape(10.dp),
+        color     = bgColor,
+        tonalElevation = 0.dp
+    ) {
+        Row(
+            modifier          = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint     = color,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text       = title,
+                color      = color,
+                fontWeight = FontWeight.SemiBold,
+                fontSize   = 14.sp,
+                modifier   = Modifier.weight(1f)
+            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = color.copy(alpha = 0.15f)
+            ) {
+                Text(
+                    text     = count.toString(),
+                    color    = color,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+        }
     }
 }
 
