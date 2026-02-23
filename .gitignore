@@ -1,0 +1,45 @@
+# Built outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Build directories
+build/
+app/build/
+
+# Local config (machine-specific, never commit)
+local.properties
+*.properties.local
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+*.orig
+
+# Keystore / signing (NEVER commit these)
+*.jks
+*.keystore
+keystore.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# NDK (if used)
+obj/
+*.so
+
+# KSP / KAPT generated
+app/src/main/java/**/generated/
