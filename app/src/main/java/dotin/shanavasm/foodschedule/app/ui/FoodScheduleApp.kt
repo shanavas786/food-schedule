@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -184,9 +183,9 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
             .format(java.util.Date())
     }
 
-    val pendingMembers  = state.members.filter { !it.skipIteration && ( it.assignedDate == null || it.assignedDate > today)  }
-    val assignedMembers = state.members.filter {
-        !it.skipIteration && it.assignedDate != null && it.assignedDate == today
+    val pendingMembers  = state.members.filter { !it.skipIteration && ( it.assignedDate == null || it.assignedDate >= today)  }
+    val pastAssignments = state.members.filter {
+        !it.skipIteration && it.assignedDate != null && it.assignedDate < today
     }
     val skippedMembers  = state.members.filter { it.skipIteration }
 
@@ -253,6 +252,80 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
                 }
             }
 
+            // ── Skipped accordion ─────────────────────────────────────────
+            if (skippedMembers.isNotEmpty()) {
+                item(key = "skipped_header") {
+                    AccordionHeader(
+                        title    = "Skipped",
+                        count    = skippedMembers.size,
+                        expanded = skippedExpanded,
+                        color    = Color(0xFFFF8F00),
+                        bgColor  = Color(0xFFFFF8E1),
+                        onClick  = { skippedExpanded = !skippedExpanded }
+                    )
+                }
+                if (skippedExpanded) {
+                    items(skippedMembers, key = { "skipped_${it.id}" }) { member ->
+                        ReorderableItem(reorderState, key = "skipped_${member.id}") {
+                            MemberCard(
+                                member     = member,
+                                dragHandle = { Spacer(Modifier.width(32.dp)) },
+                                onEdit           = {},
+                                onDelete         = {},
+                                onToggleSkip     = {
+                                    vm.toggleSkipIteration(member.id)
+                                    snackMessage = "${member.name} included this iteration"
+                                },
+                                onConfirm        = {},
+                                onRemoveSchedule = {},
+                                onEditDate       = {}
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Past Assignment accordion ────────────────────────────────────────
+            if (pastAssignments.isNotEmpty()) {
+                item(key = "assigned_header") {
+                    AccordionHeader(
+                        title    = "Past Assignments",
+                        count    = pastAssignments.size,
+                        expanded = assignedExpanded,
+                        color    = Color(0xFF1565C0),
+                        bgColor  = Color(0xFFE3F2FD),
+                        onClick  = { assignedExpanded = !assignedExpanded }
+                    )
+                }
+                if (assignedExpanded) {
+                    items(pastAssignments, key = { "assigned_${it.id}" }) { member ->
+                        // Non-reorderable — wrap in a plain Box so reorderable ignores it
+                        ReorderableItem(reorderState, key = "assigned_${member.id}") {
+                            MemberCard(
+                                member     = member,
+                                dragHandle = { Spacer(Modifier.width(32.dp)) },
+                                onEdit           = {},
+                                onDelete         = {},
+                                onToggleSkip     = {
+                                    vm.toggleSkipIteration(member.id)
+                                    snackMessage = "${member.name} skipped this iteration"
+                                },
+                                onConfirm        = {
+                                    vm.confirmSchedule(member.id)
+                                    snackMessage = "${member.name}'s schedule confirmed"
+                                },
+                                onRemoveSchedule = {
+                                    vm.removeSchedule(member.id)
+                                    snackMessage = "${member.name}'s schedule removed"
+                                },
+                                onEditDate = { editDateTarget = member }
+                            )
+                        }
+                    }
+                }
+            }
+
+
             // ── Pending / unassigned members (reorderable) ────────────────
             items(
                 count = pendingMembers.size,
@@ -287,79 +360,6 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
                         onEditDate = { editDateTarget = member },
                         modifier   = if (isDragging) Modifier.background(Color(0xFFE3F2FD)) else Modifier
                     )
-                }
-            }
-
-            // ── Assigned accordion ────────────────────────────────────────
-            if (assignedMembers.isNotEmpty()) {
-                item(key = "assigned_header") {
-                    AccordionHeader(
-                        title    = "Assigned",
-                        count    = assignedMembers.size,
-                        expanded = assignedExpanded,
-                        color    = Color(0xFF1565C0),
-                        bgColor  = Color(0xFFE3F2FD),
-                        onClick  = { assignedExpanded = !assignedExpanded }
-                    )
-                }
-                if (assignedExpanded) {
-                    items(assignedMembers, key = { "assigned_${it.id}" }) { member ->
-                        // Non-reorderable — wrap in a plain Box so reorderable ignores it
-                        ReorderableItem(reorderState, key = "assigned_${member.id}") {
-                            MemberCard(
-                                member     = member,
-                                dragHandle = { Spacer(Modifier.width(32.dp)) },
-                                onEdit           = {},
-                                onDelete         = {},
-                                onToggleSkip     = {
-                                    vm.toggleSkipIteration(member.id)
-                                    snackMessage = "${member.name} skipped this iteration"
-                                },
-                                onConfirm        = {
-                                    vm.confirmSchedule(member.id)
-                                    snackMessage = "${member.name}'s schedule confirmed"
-                                },
-                                onRemoveSchedule = {
-                                    vm.removeSchedule(member.id)
-                                    snackMessage = "${member.name}'s schedule removed"
-                                },
-                                onEditDate = { editDateTarget = member }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── Skipped accordion ─────────────────────────────────────────
-            if (skippedMembers.isNotEmpty()) {
-                item(key = "skipped_header") {
-                    AccordionHeader(
-                        title    = "Skipped",
-                        count    = skippedMembers.size,
-                        expanded = skippedExpanded,
-                        color    = Color(0xFFFF8F00),
-                        bgColor  = Color(0xFFFFF8E1),
-                        onClick  = { skippedExpanded = !skippedExpanded }
-                    )
-                }
-                if (skippedExpanded) {
-                    items(skippedMembers, key = { "skipped_${it.id}" }) { member ->
-                        ReorderableItem(reorderState, key = "skipped_${member.id}") {
-                            MemberCard(
-                                member     = member,
-                                dragHandle = { Spacer(Modifier.width(32.dp)) },
-                                onEdit           = {},
-                                onDelete         = {},
-                                onToggleSkip     = {
-                                    vm.toggleSkipIteration(member.id)
-                                    snackMessage = "${member.name} included this iteration"
-                                },
-                                onConfirm        = {},
-                                onRemoveSchedule = {},
-                                onEditDate       = {}
-                            )
-                        }
-                    }
                 }
             }
         }
