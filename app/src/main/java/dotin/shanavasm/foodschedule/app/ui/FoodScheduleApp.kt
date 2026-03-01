@@ -183,27 +183,35 @@ fun ScheduleTab(vm: ScheduleViewModel, state: ScheduleUiState) {
             .format(java.util.Date())
     }
 
-    val pendingMembers  = state.members.filter { !it.skipIteration && ( it.assignedDate == null || it.assignedDate >= today)  }
-    val pastAssignments = state.members.filter {
-        !it.skipIteration && it.assignedDate != null && it.assignedDate < today
-    }
-    val skippedMembers  = state.members.filter { it.skipIteration }
+    // Local mutable copy kept in sync with the ViewModel state.
+    // Updated optimistically on every drag step so that consecutive moves within
+    // the same gesture always see the already-reordered list, not a stale snapshot.
+    var localMembers by remember { mutableStateOf(state.members) }
+    LaunchedEffect(state.members) { localMembers = state.members }
+
+    val pendingMembers  = localMembers.filter { !it.skipIteration && (it.assignedDate == null || it.assignedDate >= today) }
+    val pastAssignments = localMembers.filter { !it.skipIteration && it.assignedDate != null && it.assignedDate < today }
+    val skippedMembers  = localMembers.filter { it.skipIteration }
 
     // Reorder only operates on the pending (unassigned) list.
-    // The index offset accounts for: 1 header item before pending items.
+    // We identify items by their LazyColumn key (plain member ID for pending items,
+    // prefixed with "skipped_" / "assigned_" for other sections) so that we are
+    // never affected by how many header/accordion items appear before the pending
+    // section in the list.
     val reorderState = rememberReorderableLazyListState(
         onMove = { from, to ->
-            // Items in LazyColumn: [0]=HeaderCard, [1..pending.size]=pending members
-            val fromIdx = from.index - 1
-            val toIdx   = to.index - 1
-            if (fromIdx in pendingMembers.indices && toIdx in pendingMembers.indices) {
-                // Map local pending indices back to full members list indices
-                val pendingIds  = pendingMembers.map { it.id }
-                val fromMember  = pendingMembers.getOrNull(fromIdx) ?: return@rememberReorderableLazyListState
-                val toMember    = pendingMembers.getOrNull(toIdx)   ?: return@rememberReorderableLazyListState
-                val globalFrom  = state.members.indexOfFirst { it.id == fromMember.id }
-                val globalTo    = state.members.indexOfFirst { it.id == toMember.id }
-                if (globalFrom >= 0 && globalTo >= 0) vm.reorderIteration(globalFrom, globalTo)
+            val fromKey = from.key as? String ?: return@rememberReorderableLazyListState
+            val toKey   = to.key   as? String ?: return@rememberReorderableLazyListState
+            // Only reorder within the pending section (keys are bare member IDs)
+            if (fromKey.startsWith("skipped_") || fromKey.startsWith("assigned_") ||
+                toKey.startsWith("skipped_")   || toKey.startsWith("assigned_")) return@rememberReorderableLazyListState
+            val globalFrom = localMembers.indexOfFirst { it.id == fromKey }
+            val globalTo   = localMembers.indexOfFirst { it.id == toKey }
+            if (globalFrom >= 0 && globalTo >= 0) {
+                // Update local copy immediately so the next onMove in this gesture
+                // sees the correct positions, then persist to the ViewModel.
+                localMembers = localMembers.toMutableList().apply { add(globalTo, removeAt(globalFrom)) }
+                vm.reorderIteration(globalFrom, globalTo)
             }
         }
     )
